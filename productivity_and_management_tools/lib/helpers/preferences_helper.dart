@@ -23,19 +23,6 @@ class PreferencesHelper {
     return _safePreferences?.getString('username') ?? 'User';
   }
 
-  // First Launch Flag
-  static Future<bool> setFirstLaunch(bool isFirstLaunch) {
-    final preferences = _safePreferences;
-    if (preferences == null) {
-      return Future.value(false);
-    }
-    return preferences.setBool('firstLaunch', isFirstLaunch);
-  }
-
-  static bool getFirstLaunch() {
-    return _safePreferences?.getBool('firstLaunch') ?? true;
-  }
-
   // Last Opened Tab Index
   static Future<bool> setLastTabIndex(int index) {
     final preferences = _safePreferences;
@@ -47,32 +34,6 @@ class PreferencesHelper {
 
   static int getLastTabIndex() {
     return _safePreferences?.getInt('lastTabIndex') ?? 0;
-  }
-
-  // Daily Task Count Streak
-  static Future<bool> setTaskStreak(int streak) {
-    final preferences = _safePreferences;
-    if (preferences == null) {
-      return Future.value(false);
-    }
-    return preferences.setInt('taskStreak', streak);
-  }
-
-  static int getTaskStreak() {
-    return _safePreferences?.getInt('taskStreak') ?? 0;
-  }
-
-  // Today's date for streak tracking
-  static Future<bool> setLastStreakDate(String date) {
-    final preferences = _safePreferences;
-    if (preferences == null) {
-      return Future.value(false);
-    }
-    return preferences.setString('lastStreakDate', date);
-  }
-
-  static String getLastStreakDate() {
-    return _safePreferences?.getString('lastStreakDate') ?? '';
   }
 
   // Pomodoro sessions completed today

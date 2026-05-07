@@ -22,32 +22,46 @@ class DatabaseHelper {
   FirebaseFirestore? _firestore;
   SharedPreferences? _preferences;
   bool _isInitialized = false;
+  bool _firebaseAvailable = false;
 
   Future<void> initDB() async {
     if (_isInitialized) {
       return;
     }
 
-    if (kIsWeb) {
-      _preferences ??= await SharedPreferences.getInstance();
-      _isInitialized = true;
-      return;
-    }
+    _preferences ??= await SharedPreferences.getInstance();
 
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
     _firestore = FirebaseFirestore.instance;
-    try {
-      // Web can fail here if Anonymous auth is not enabled in Firebase yet.
-      await FirebaseAuth.instance.signInAnonymously();
-    } on FirebaseAuthException catch (error) {
-      debugPrint(
-        'Anonymous Firebase auth unavailable: ${error.code} ${error.message}',
-      );
-    }
+    await _tryEnableFirebaseAccess();
     _isInitialized = true;
+  }
+
+  Future<void> _tryEnableFirebaseAccess() async {
+    try {
+      final auth = FirebaseAuth.instance;
+      if (auth.currentUser == null) {
+        await auth.signInAnonymously();
+      }
+      _firebaseAvailable = true;
+    } on FirebaseAuthException catch (error) {
+      if (!_isExpectedOptionalAuthError(error.code)) {
+        debugPrint(
+          'Firebase anonymous auth unavailable: ${error.code} ${error.message}',
+        );
+      }
+      _firebaseAvailable = false;
+    } catch (error) {
+      debugPrint('Firebase auth initialization failed: $error');
+      _firebaseAvailable = false;
+    }
+  }
+
+  bool _isExpectedOptionalAuthError(String code) {
+    return code == 'configuration-not-found' || code == 'operation-not-allowed';
   }
 
   Future<SharedPreferences> _getPreferences() async {
@@ -63,7 +77,10 @@ class DatabaseHelper {
     final preferences = await _getPreferences();
     final rawTasks = preferences.getStringList(_tasksStorageKey) ?? [];
     return rawTasks
-        .map((taskJson) => Task.fromMap(jsonDecode(taskJson) as Map<String, dynamic>))
+        .map(
+          (taskJson) =>
+              Task.fromMap(jsonDecode(taskJson) as Map<String, dynamic>),
+        )
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
@@ -78,7 +95,10 @@ class DatabaseHelper {
     final preferences = await _getPreferences();
     final rawNotes = preferences.getStringList(_notesStorageKey) ?? [];
     return rawNotes
-        .map((noteJson) => Note.fromMap(jsonDecode(noteJson) as Map<String, dynamic>))
+        .map(
+          (noteJson) =>
+              Note.fromMap(jsonDecode(noteJson) as Map<String, dynamic>),
+        )
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
@@ -116,13 +136,94 @@ class DatabaseHelper {
     return firestore.collection('notes');
   }
 
+  Future<void> _syncTaskToFirebase(Task task) async {
+    if (!_firebaseAvailable) return;
+    try {
+      final firestore = await _getFirestore();
+      await _taskCollection(
+        firestore,
+      ).doc(task.id.toString()).set(task.toMap());
+    } catch (error) {
+      debugPrint('Failed to sync task to Firebase: $error');
+    }
+  }
+
+  Future<void> _syncNoteToFirebase(Note note) async {
+    if (!_firebaseAvailable) return;
+    try {
+      final firestore = await _getFirestore();
+      await _noteCollection(
+        firestore,
+      ).doc(note.id.toString()).set(note.toMap());
+    } catch (error) {
+      debugPrint('Failed to sync note to Firebase: $error');
+    }
+  }
+
+  Future<void> _deleteTaskFromFirebase(int id) async {
+    if (!_firebaseAvailable) return;
+    try {
+      final firestore = await _getFirestore();
+      await _taskCollection(firestore).doc(id.toString()).delete();
+    } catch (error) {
+      debugPrint('Failed to delete task from Firebase: $error');
+    }
+  }
+
+  Future<void> _deleteNoteFromFirebase(int id) async {
+    if (!_firebaseAvailable) return;
+    try {
+      final firestore = await _getFirestore();
+      await _noteCollection(firestore).doc(id.toString()).delete();
+    } catch (error) {
+      debugPrint('Failed to delete note from Firebase: $error');
+    }
+  }
+
+  Future<void> _deleteAllTasksFromFirebase() async {
+    if (!_firebaseAvailable) return;
+    try {
+      final firestore = await _getFirestore();
+      final snapshot = await _taskCollection(firestore).get();
+      final batch = firestore.batch();
+
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+    } catch (error) {
+      debugPrint('Failed to delete all tasks from Firebase: $error');
+    }
+  }
+
+  Future<void> _deleteAllNotesFromFirebase() async {
+    if (!_firebaseAvailable) return;
+    try {
+      final firestore = await _getFirestore();
+      final snapshot = await _noteCollection(firestore).get();
+      final batch = firestore.batch();
+
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+    } catch (error) {
+      debugPrint('Failed to delete all notes from Firebase: $error');
+    }
+  }
+
   Future<int> insertTask(Task task) async {
     if (kIsWeb) {
       final tasks = await _getLocalTasks();
       final int id = task.id ?? _generateId();
+      final newTask = task.copyWith(id: id);
       tasks.removeWhere((existingTask) => existingTask.id == id);
-      tasks.add(task.copyWith(id: id));
+      tasks.add(newTask);
       await _saveLocalTasks(tasks);
+      // Async sync to Firebase without await
+      _syncTaskToFirebase(newTask);
       return id;
     }
 
@@ -164,13 +265,17 @@ class DatabaseHelper {
       }
 
       final tasks = await _getLocalTasks();
-      final index = tasks.indexWhere((existingTask) => existingTask.id == task.id);
+      final index = tasks.indexWhere(
+        (existingTask) => existingTask.id == task.id,
+      );
       if (index == -1) {
         return 0;
       }
 
       tasks[index] = task;
       await _saveLocalTasks(tasks);
+      // Async sync to Firebase without await
+      _syncTaskToFirebase(task);
       return 1;
     }
 
@@ -196,6 +301,8 @@ class DatabaseHelper {
       final tasks = await _getLocalTasks();
       tasks.removeWhere((task) => task.id == id);
       await _saveLocalTasks(tasks);
+      // Async delete from Firebase without await
+      _deleteTaskFromFirebase(id);
       return 1;
     }
 
@@ -214,6 +321,8 @@ class DatabaseHelper {
     if (kIsWeb) {
       final tasks = await _getLocalTasks();
       await _saveLocalTasks([]);
+      // Async delete all from Firebase without await
+      _deleteAllTasksFromFirebase();
       return tasks.length;
     }
 
@@ -238,9 +347,12 @@ class DatabaseHelper {
     if (kIsWeb) {
       final notes = await _getLocalNotes();
       final int id = note.id ?? _generateId();
+      final newNote = note.copyWith(id: id);
       notes.removeWhere((existingNote) => existingNote.id == id);
-      notes.add(note.copyWith(id: id));
+      notes.add(newNote);
       await _saveLocalNotes(notes);
+      // Async sync to Firebase without await
+      _syncNoteToFirebase(newNote);
       return id;
     }
 
@@ -282,13 +394,17 @@ class DatabaseHelper {
       }
 
       final notes = await _getLocalNotes();
-      final index = notes.indexWhere((existingNote) => existingNote.id == note.id);
+      final index = notes.indexWhere(
+        (existingNote) => existingNote.id == note.id,
+      );
       if (index == -1) {
         return 0;
       }
 
       notes[index] = note;
       await _saveLocalNotes(notes);
+      // Async sync to Firebase without await
+      _syncNoteToFirebase(note);
       return 1;
     }
 
@@ -314,6 +430,8 @@ class DatabaseHelper {
       final notes = await _getLocalNotes();
       notes.removeWhere((note) => note.id == id);
       await _saveLocalNotes(notes);
+      // Async delete from Firebase without await
+      _deleteNoteFromFirebase(id);
       return 1;
     }
 
@@ -332,6 +450,8 @@ class DatabaseHelper {
     if (kIsWeb) {
       final notes = await _getLocalNotes();
       await _saveLocalNotes([]);
+      // Async delete all from Firebase without await
+      _deleteAllNotesFromFirebase();
       return notes.length;
     }
 
