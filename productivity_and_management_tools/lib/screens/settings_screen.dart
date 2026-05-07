@@ -26,8 +26,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  void _saveUsername() {
-    PreferencesHelper.setUsername(_usernameController.text);
+  Future<void> _saveUsername() async {
+    await PreferencesHelper.setUsername(_usernameController.text.trim());
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Username saved!')),
     );
@@ -36,20 +39,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showClearAllConfirmation() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Clear All Tasks'),
         content: const Text(
           'Are you sure you want to delete all tasks? This action cannot be undone.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
               await _dbHelper.deleteAllTasks();
-              Navigator.pop(context);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
+              if (!mounted) {
+                return;
+              }
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('All tasks deleted')),
               );
@@ -64,20 +72,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showClearNotesConfirmation() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Clear All Notes'),
         content: const Text(
           'Are you sure you want to delete all notes? This action cannot be undone.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
               await _dbHelper.deleteAllNotes();
-              Navigator.pop(context);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
+              if (!mounted) {
+                return;
+              }
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('All notes deleted')),
               );

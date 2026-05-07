@@ -14,7 +14,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  late List<Task> _tasks;
+  List<Task> _tasks = [];
   int _totalTasks = 0;
   int _completedTasks = 0;
   int _pendingTasks = 0;
@@ -29,27 +29,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchQuote();
   }
 
-  void _loadData() async {
-    _tasks = await _dbHelper.retrieveTasks();
-    _totalTasks = _tasks.length;
-    _completedTasks = _tasks.where((task) => task.isCompleted).length;
-    _pendingTasks = _totalTasks - _completedTasks;
+  Future<void> _loadData() async {
     setState(() {
+      _isLoading = true;
+    });
+
+    final tasks = await _dbHelper.retrieveTasks();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _tasks = tasks;
+      _totalTasks = _tasks.length;
+      _completedTasks = _tasks.where((task) => task.isCompleted).length;
+      _pendingTasks = _totalTasks - _completedTasks;
       _isLoading = false;
     });
   }
 
-  void _fetchQuote() async {
+  Future<void> _fetchQuote() async {
     try {
       final response = await http.get(Uri.parse('https://zenquotes.io/api/random'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _quote = data[0]['q'] ?? 'Stay focused and productive!';
           _quoteLoading = false;
         });
+      } else {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _quote = 'Stay focused and productive!';
+          _quoteLoading = false;
+        });
       }
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _quote = 'Stay focused and productive!';
         _quoteLoading = false;
@@ -171,7 +194,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () =>
-                                  Navigator.pushNamed(context, '/addTask'),
+                                  Navigator.pushNamed(context, '/addTask')
+                                      .then((_) => _loadData()),
                               icon: const Icon(Icons.add),
                               label: const Text('Add Task'),
                               style: ElevatedButton.styleFrom(
@@ -185,7 +209,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () =>
-                                  Navigator.pushNamed(context, '/notes'),
+                                  Navigator.pushNamed(context, '/addNote')
+                                      .then((_) => _loadData()),
                               icon: const Icon(Icons.note_add),
                               label: const Text('Add Note'),
                               style: ElevatedButton.styleFrom(
@@ -269,9 +294,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   value: task.isCompleted,
                                   onChanged: (value) async {
                                     await _dbHelper.updateTask(
-                                      task.copyWith(isCompleted: value),
+                                      task.copyWith(
+                                        isCompleted: value ?? task.isCompleted,
+                                      ),
                                     );
-                                    _loadData();
+                                    await _loadData();
                                   },
                                 ),
                               ),
@@ -298,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: textColor.withOpacity(0.1),
+            color: textColor.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),

@@ -11,8 +11,8 @@ class TaskListScreen extends StatefulWidget {
 
 class _TaskListScreenState extends State<TaskListScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  late List<Task> _allTasks;
-  late List<Task> _filteredTasks;
+  List<Task> _allTasks = [];
+  List<Task> _filteredTasks = [];
   bool _isLoading = true;
   String _filterOption = 'All'; // All, Completed, Pending
 
@@ -22,10 +22,19 @@ class _TaskListScreenState extends State<TaskListScreen> {
     _loadTasks();
   }
 
-  void _loadTasks() async {
-    _allTasks = await _dbHelper.retrieveTasks();
-    _applyFilter();
+  Future<void> _loadTasks() async {
     setState(() {
+      _isLoading = true;
+    });
+
+    final tasks = await _dbHelper.retrieveTasks();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _allTasks = tasks;
+      _applyFilter();
       _isLoading = false;
     });
   }
@@ -42,31 +51,33 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  void _deleteTask(int id) async {
+  Future<void> _deleteTask(int id) async {
     await _dbHelper.deleteTask(id);
-    _loadTasks();
+    await _loadTasks();
   }
 
-  void _toggleTaskComplete(Task task) async {
+  Future<void> _toggleTaskComplete(Task task) async {
     await _dbHelper.updateTask(task.copyWith(isCompleted: !task.isCompleted));
-    _loadTasks();
+    await _loadTasks();
   }
 
   void _showDeleteConfirmation(int taskId, String taskTitle) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Task'),
         content: Text('Are you sure you want to delete "$taskTitle"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              _deleteTask(taskId);
-              Navigator.pop(context);
+            onPressed: () async {
+              await _deleteTask(taskId);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -194,8 +205,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         ),
                         trailing: Checkbox(
                           value: task.isCompleted,
-                          onChanged: (value) {
-                            _toggleTaskComplete(task);
+                          onChanged: (value) async {
+                            await _toggleTaskComplete(task);
                           },
                         ),
                         onTap: () {
@@ -203,7 +214,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                             context,
                             '/addTask',
                             arguments: task,
-                          );
+                          ).then((_) => _loadTasks());
                         },
                         onLongPress: () {
                           _showDeleteConfirmation(task.id!, task.title);
@@ -213,7 +224,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/addTask'),
+        onPressed: () {
+          Navigator.pushNamed(context, '/addTask').then((_) => _loadTasks());
+        },
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add),
       ),

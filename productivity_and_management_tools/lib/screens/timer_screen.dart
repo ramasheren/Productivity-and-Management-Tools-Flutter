@@ -10,7 +10,7 @@ class TimerScreen extends StatefulWidget {
 }
 
 class _TimerScreenState extends State<TimerScreen> {
-  late Timer _timer;
+  Timer? _timer;
   int _seconds = 0;
   final int _totalSeconds = 25 * 60; // 25 minutes for Pomodoro
   bool _isRunning = false;
@@ -42,7 +42,8 @@ class _TimerScreenState extends State<TimerScreen> {
       setState(() {
         _seconds++;
         if (_seconds >= _totalSeconds) {
-          _timer.cancel();
+          _timer?.cancel();
+          _timer = null;
           _isRunning = false;
           _sessionsCompleted++;
           PreferencesHelper.setPomodoroSessions(_sessionsCompleted);
@@ -57,14 +58,16 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   void _pauseTimer() {
-    _timer.cancel();
+    _timer?.cancel();
+    _timer = null;
     setState(() {
       _isRunning = false;
     });
   }
 
   void _resetTimer() {
-    _timer.cancel();
+    _timer?.cancel();
+    _timer = null;
     setState(() {
       _seconds = 0;
       _isRunning = false;
@@ -102,7 +105,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
   @override
   void dispose() {
-    _timer.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 

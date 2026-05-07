@@ -1,73 +1,103 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PreferencesHelper {
-  static late SharedPreferences _preferences;
+  static SharedPreferences? _preferences;
 
   // Initialize SharedPreferences
   static Future<void> init() async {
     _preferences = await SharedPreferences.getInstance();
   }
 
+  static SharedPreferences? get _safePreferences => _preferences;
+
   // Username
   static Future<bool> setUsername(String username) {
-    return _preferences.setString('username', username);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setString('username', username);
   }
 
   static String getUsername() {
-    return _preferences.getString('username') ?? 'User';
+    return _safePreferences?.getString('username') ?? 'User';
   }
 
   // First Launch Flag
   static Future<bool> setFirstLaunch(bool isFirstLaunch) {
-    return _preferences.setBool('firstLaunch', isFirstLaunch);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setBool('firstLaunch', isFirstLaunch);
   }
 
   static bool getFirstLaunch() {
-    return _preferences.getBool('firstLaunch') ?? true;
+    return _safePreferences?.getBool('firstLaunch') ?? true;
   }
 
   // Last Opened Tab Index
   static Future<bool> setLastTabIndex(int index) {
-    return _preferences.setInt('lastTabIndex', index);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setInt('lastTabIndex', index);
   }
 
   static int getLastTabIndex() {
-    return _preferences.getInt('lastTabIndex') ?? 0;
+    return _safePreferences?.getInt('lastTabIndex') ?? 0;
   }
 
   // Daily Task Count Streak
   static Future<bool> setTaskStreak(int streak) {
-    return _preferences.setInt('taskStreak', streak);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setInt('taskStreak', streak);
   }
 
   static int getTaskStreak() {
-    return _preferences.getInt('taskStreak') ?? 0;
+    return _safePreferences?.getInt('taskStreak') ?? 0;
   }
 
   // Today's date for streak tracking
   static Future<bool> setLastStreakDate(String date) {
-    return _preferences.setString('lastStreakDate', date);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setString('lastStreakDate', date);
   }
 
   static String getLastStreakDate() {
-    return _preferences.getString('lastStreakDate') ?? '';
+    return _safePreferences?.getString('lastStreakDate') ?? '';
   }
 
   // Pomodoro sessions completed today
   static Future<bool> setPomodoroSessions(int sessions) {
-    return _preferences.setInt('pomodoroSessions', sessions);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setInt('pomodoroSessions', sessions);
   }
 
   static int getPomodoroSessions() {
-    return _preferences.getInt('pomodoroSessions') ?? 0;
+    return _safePreferences?.getInt('pomodoroSessions') ?? 0;
   }
 
   // Last Pomodoro date
   static Future<bool> setLastPomodoroDate(String date) {
-    return _preferences.setString('lastPomodoroDate', date);
+    final preferences = _safePreferences;
+    if (preferences == null) {
+      return Future.value(false);
+    }
+    return preferences.setString('lastPomodoroDate', date);
   }
 
   static String getLastPomodoroDate() {
-    return _preferences.getString('lastPomodoroDate') ?? '';
+    return _safePreferences?.getString('lastPomodoroDate') ?? '';
   }
 }

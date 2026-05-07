@@ -31,12 +31,12 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     super.dispose();
   }
 
-  void _saveNote() async {
+  Future<void> _saveNote() async {
     if (_formKey.currentState!.validate()) {
       Note note = Note(
         id: widget.note?.id,
-        title: _titleController.text,
-        body: _bodyController.text,
+        title: _titleController.text.trim(),
+        body: _bodyController.text.trim(),
         createdAt: widget.note?.createdAt ?? DateTime.now().toIso8601String(),
       );
 

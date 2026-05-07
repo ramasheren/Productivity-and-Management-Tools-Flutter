@@ -11,7 +11,7 @@ class NotesScreen extends StatefulWidget {
 
 class _NotesScreenState extends State<NotesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  late List<Note> _notes;
+  List<Note> _notes = [];
   bool _isLoading = true;
 
   final List<Color> _pastelColors = [
@@ -31,33 +31,44 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadNotes();
   }
 
-  void _loadNotes() async {
-    _notes = await _dbHelper.retrieveNotes();
+  Future<void> _loadNotes() async {
     setState(() {
+      _isLoading = true;
+    });
+
+    final notes = await _dbHelper.retrieveNotes();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _notes = notes;
       _isLoading = false;
     });
   }
 
-  void _deleteNote(int id) async {
+  Future<void> _deleteNote(int id) async {
     await _dbHelper.deleteNote(id);
-    _loadNotes();
+    await _loadNotes();
   }
 
   void _showDeleteConfirmation(int noteId, String noteTitle) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Note'),
         content: Text('Are you sure you want to delete "$noteTitle"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              _deleteNote(noteId);
-              Navigator.pop(context);
+            onPressed: () async {
+              await _deleteNote(noteId);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -117,6 +128,13 @@ class _NotesScreenState extends State<NotesScreen> {
                   itemBuilder: (context, index) {
                     Note note = _notes[index];
                     return GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/addNote',
+                          arguments: note,
+                        ).then((_) => _loadNotes());
+                      },
                       onLongPress: () {
                         _showDeleteConfirmation(note.id!, note.title);
                       },
@@ -131,7 +149,7 @@ class _NotesScreenState extends State<NotesScreen> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
+                                color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -168,7 +186,7 @@ class _NotesScreenState extends State<NotesScreen> {
                                 note.createdAt.substring(0, 10),
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.black.withOpacity(0.4),
+                                  color: Colors.black.withValues(alpha: 0.4),
                                 ),
                               ),
                             ],
@@ -179,7 +197,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/addNote'),
+        onPressed: () {
+          Navigator.pushNamed(context, '/addNote').then((_) => _loadNotes());
+        },
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add),
       ),

@@ -38,7 +38,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     super.dispose();
   }
 
-  void _saveTask() async {
+  Future<void> _saveTask() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedPriority.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -49,11 +49,15 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
       Task task = Task(
         id: widget.task?.id,
-        title: _titleController.text,
-        description: _descriptionController.text,
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
         priority: _selectedPriority,
         isCompleted: widget.task?.isCompleted ?? false,
-        dueDate: _dueDateController.text,
+        dueDate: _dueDateController.text.trim().isEmpty
+            ? null
+            : _dueDateController.text.trim(),
         createdAt: widget.task?.createdAt ?? DateTime.now().toIso8601String(),
       );
 
@@ -70,11 +74,12 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   Future<void> _selectDate() async {
+    final now = DateTime.now();
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2025, 12, 31),
+      initialDate: now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 5, 12, 31),
     );
     if (picked != null) {
       setState(() {
