@@ -24,7 +24,7 @@ class Task {
       'title': title,
       'description': description,
       'priority': priority,
-      'isCompleted': isCompleted ? 1 : 0,
+      'isCompleted': isCompleted,
       'dueDate': dueDate,
       'createdAt': createdAt,
     };
@@ -37,7 +37,9 @@ class Task {
       title: map['title'],
       description: map['description'],
       priority: map['priority'],
-      isCompleted: map['isCompleted'] == 1,
+      isCompleted: map['isCompleted'] is bool
+          ? map['isCompleted'] as bool
+          : map['isCompleted'] == 1,
       dueDate: map['dueDate'],
       createdAt: map['createdAt'],
     );

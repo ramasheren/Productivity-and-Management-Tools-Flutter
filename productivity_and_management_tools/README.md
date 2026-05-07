@@ -1,17 +1,14 @@
 # productivity_and_management_tools
 
-A new Flutter project.
+This app now uses Firebase Cloud Firestore for tasks and notes.
 
-## Getting Started
+## Firebase setup
 
-This project is a starting point for a Flutter application.
+1. Install the FlutterFire CLI:
+   `dart pub global activate flutterfire_cli`
+2. From this project folder, connect the app to your Firebase project:
+   `flutterfire configure`
+3. Rebuild the app:
+   `flutter run`
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Until Firebase is configured, the app falls back to temporary in-memory storage for tasks and notes.
