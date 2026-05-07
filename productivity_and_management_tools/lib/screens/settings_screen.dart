@@ -12,14 +12,12 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   late TextEditingController _usernameController;
-  late bool _darkMode;
 
   @override
   void initState() {
     super.initState();
     _usernameController =
         TextEditingController(text: PreferencesHelper.getUsername());
-    _darkMode = PreferencesHelper.getDarkMode();
   }
 
   @override
@@ -33,13 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Username saved!')),
     );
-  }
-
-  void _toggleDarkMode(bool value) {
-    setState(() {
-      _darkMode = value;
-    });
-    PreferencesHelper.setDarkMode(value);
   }
 
   void _showClearAllConfirmation() {
@@ -164,35 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-            ),
-
-            const Divider(height: 32, thickness: 1),
-
-            // Appearance Section
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Appearance',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    title: const Text('Dark Mode'),
-                    trailing: Switch(
-                      value: _darkMode,
-                      onChanged: _toggleDarkMode,
-                      activeColor: Colors.blueAccent,
-                    ),
                   ),
                 ],
               ),

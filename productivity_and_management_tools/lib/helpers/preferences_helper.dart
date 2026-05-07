@@ -17,15 +17,6 @@ class PreferencesHelper {
     return _preferences.getString('username') ?? 'User';
   }
 
-  // Dark Mode
-  static Future<bool> setDarkMode(bool isDarkMode) {
-    return _preferences.setBool('darkMode', isDarkMode);
-  }
-
-  static bool getDarkMode() {
-    return _preferences.getBool('darkMode') ?? false;
-  }
-
   // First Launch Flag
   static Future<bool> setFirstLaunch(bool isFirstLaunch) {
     return _preferences.setBool('firstLaunch', isFirstLaunch);

@@ -12,7 +12,7 @@ class TimerScreen extends StatefulWidget {
 class _TimerScreenState extends State<TimerScreen> {
   late Timer _timer;
   int _seconds = 0;
-  int _totalSeconds = 25 * 60; // 25 minutes for Pomodoro
+  final int _totalSeconds = 25 * 60; // 25 minutes for Pomodoro
   bool _isRunning = false;
   int _sessionsCompleted = 0;
 
