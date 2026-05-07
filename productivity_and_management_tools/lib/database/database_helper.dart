@@ -1,11 +1,16 @@
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../firebase_options.dart';
 import '../models/task.dart';
 import '../models/note.dart';
 
 class DatabaseHelper {
+  static const String _tasksStorageKey = 'local_tasks';
+  static const String _notesStorageKey = 'local_notes';
   static final DatabaseHelper _databaseHelper = DatabaseHelper._();
 
   DatabaseHelper._();
@@ -15,42 +20,78 @@ class DatabaseHelper {
   }
 
   FirebaseFirestore? _firestore;
+  SharedPreferences? _preferences;
   bool _isInitialized = false;
-  bool _useFallbackStore = false;
-
-  final List<Map<String, dynamic>> _webTaskStore = [];
-  final List<Map<String, dynamic>> _webNoteStore = [];
 
   Future<void> initDB() async {
     if (_isInitialized) {
       return;
     }
 
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      _firestore = FirebaseFirestore.instance;
-      _useFallbackStore = false;
-    } catch (error) {
-      _useFallbackStore = true;
-      debugPrint(
-        'Firebase initialization failed. Falling back to in-memory storage. '
-        'Run "flutterfire configure" and add your platform Firebase config files. '
-        'Error: $error',
-      );
-    } finally {
+    if (kIsWeb) {
+      _preferences ??= await SharedPreferences.getInstance();
       _isInitialized = true;
+      return;
     }
+
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    _firestore = FirebaseFirestore.instance;
+    try {
+      // Web can fail here if Anonymous auth is not enabled in Firebase yet.
+      await FirebaseAuth.instance.signInAnonymously();
+    } on FirebaseAuthException catch (error) {
+      debugPrint(
+        'Anonymous Firebase auth unavailable: ${error.code} ${error.message}',
+      );
+    }
+    _isInitialized = true;
   }
 
-  Future<FirebaseFirestore?> _getFirestore() async {
+  Future<SharedPreferences> _getPreferences() async {
     if (!_isInitialized) {
       await initDB();
     }
 
-    if (_useFallbackStore) {
-      return null;
+    _preferences ??= await SharedPreferences.getInstance();
+    return _preferences!;
+  }
+
+  Future<List<Task>> _getLocalTasks() async {
+    final preferences = await _getPreferences();
+    final rawTasks = preferences.getStringList(_tasksStorageKey) ?? [];
+    return rawTasks
+        .map((taskJson) => Task.fromMap(jsonDecode(taskJson) as Map<String, dynamic>))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  Future<void> _saveLocalTasks(List<Task> tasks) async {
+    final preferences = await _getPreferences();
+    final rawTasks = tasks.map((task) => jsonEncode(task.toMap())).toList();
+    await preferences.setStringList(_tasksStorageKey, rawTasks);
+  }
+
+  Future<List<Note>> _getLocalNotes() async {
+    final preferences = await _getPreferences();
+    final rawNotes = preferences.getStringList(_notesStorageKey) ?? [];
+    return rawNotes
+        .map((noteJson) => Note.fromMap(jsonDecode(noteJson) as Map<String, dynamic>))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  Future<void> _saveLocalNotes(List<Note> notes) async {
+    final preferences = await _getPreferences();
+    final rawNotes = notes.map((note) => jsonEncode(note.toMap())).toList();
+    await preferences.setStringList(_notesStorageKey, rawNotes);
+  }
+
+  Future<FirebaseFirestore> _getFirestore() async {
+    if (!_isInitialized) {
+      await initDB();
     }
 
     final firestore = _firestore;
@@ -76,178 +117,238 @@ class DatabaseHelper {
   }
 
   Future<int> insertTask(Task task) async {
-    final firestore = await _getFirestore();
-    final int id = task.id ?? _generateId();
-    final taskMap = task.copyWith(id: id).toMap();
-
-    if (firestore == null) {
-      taskMap['id'] = id;
-      _webTaskStore.add(taskMap);
+    if (kIsWeb) {
+      final tasks = await _getLocalTasks();
+      final int id = task.id ?? _generateId();
+      tasks.removeWhere((existingTask) => existingTask.id == id);
+      tasks.add(task.copyWith(id: id));
+      await _saveLocalTasks(tasks);
       return id;
     }
 
-    await _taskCollection(firestore).doc(id.toString()).set(taskMap);
-    return id;
+    try {
+      final firestore = await _getFirestore();
+      final int id = task.id ?? _generateId();
+      final taskMap = task.copyWith(id: id).toMap();
+
+      await _taskCollection(firestore).doc(id.toString()).set(taskMap);
+      return id;
+    } catch (error) {
+      debugPrint('Failed to insert task: $error');
+      return 0;
+    }
   }
 
   Future<List<Task>> retrieveTasks() async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final maps = List<Map<String, dynamic>>.from(_webTaskStore);
-      maps.sort(
-        (a, b) =>
-            (b['createdAt'] as String).compareTo(a['createdAt'] as String),
-      );
-      return List.generate(maps.length, (i) => Task.fromMap(maps[i]));
+    if (kIsWeb) {
+      return _getLocalTasks();
     }
 
-    final snapshot = await _taskCollection(
-      firestore,
-    ).orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map((doc) => Task.fromMap(doc.data())).toList();
+    try {
+      final firestore = await _getFirestore();
+
+      final snapshot = await _taskCollection(
+        firestore,
+      ).orderBy('createdAt', descending: true).get();
+      return snapshot.docs.map((doc) => Task.fromMap(doc.data())).toList();
+    } catch (error) {
+      debugPrint('Failed to retrieve tasks: $error');
+      return [];
+    }
   }
 
   Future<int> updateTask(Task task) async {
-    final firestore = await _getFirestore();
+    if (kIsWeb) {
+      if (task.id == null) {
+        return 0;
+      }
 
-    if (firestore == null) {
-      final index = _webTaskStore.indexWhere((map) => map['id'] == task.id);
+      final tasks = await _getLocalTasks();
+      final index = tasks.indexWhere((existingTask) => existingTask.id == task.id);
       if (index == -1) {
         return 0;
       }
-      _webTaskStore[index] = task.toMap();
+
+      tasks[index] = task;
+      await _saveLocalTasks(tasks);
       return 1;
     }
 
-    if (task.id == null) {
+    try {
+      final firestore = await _getFirestore();
+
+      if (task.id == null) {
+        return 0;
+      }
+
+      await _taskCollection(
+        firestore,
+      ).doc(task.id.toString()).update(task.toMap());
+      return 1;
+    } catch (error) {
+      debugPrint('Failed to update task: $error');
       return 0;
     }
-
-    await _taskCollection(
-      firestore,
-    ).doc(task.id.toString()).update(task.toMap());
-    return 1;
   }
 
   Future<int> deleteTask(int id) async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final int initialLength = _webTaskStore.length;
-      _webTaskStore.removeWhere((map) => map['id'] == id);
-      return _webTaskStore.length < initialLength ? 1 : 0;
-    }
-
-    await _taskCollection(firestore).doc(id.toString()).delete();
-    return 1;
-  }
-
-  Future<int> deleteAllTasks() async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final count = _webTaskStore.length;
-      _webTaskStore.clear();
-      return count;
-    }
-
-    final snapshot = await _taskCollection(firestore).get();
-    final batch = firestore.batch();
-
-    for (final doc in snapshot.docs) {
-      batch.delete(doc.reference);
-    }
-
-    await batch.commit();
-    return snapshot.docs.length;
-  }
-
-  Future<int> insertNote(Note note) async {
-    final firestore = await _getFirestore();
-    final int id = note.id ?? _generateId();
-    final noteMap = note.copyWith(id: id).toMap();
-
-    if (firestore == null) {
-      noteMap['id'] = id;
-      _webNoteStore.add(noteMap);
-      return id;
-    }
-
-    await _noteCollection(firestore).doc(id.toString()).set(noteMap);
-    return id;
-  }
-
-  Future<List<Note>> retrieveNotes() async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final maps = List<Map<String, dynamic>>.from(_webNoteStore);
-      maps.sort(
-        (a, b) =>
-            (b['createdAt'] as String).compareTo(a['createdAt'] as String),
-      );
-      return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
-    }
-
-    final snapshot = await _noteCollection(
-      firestore,
-    ).orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map((doc) => Note.fromMap(doc.data())).toList();
-  }
-
-  Future<int> updateNote(Note note) async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final index = _webNoteStore.indexWhere((map) => map['id'] == note.id);
-      if (index == -1) {
-        return 0;
-      }
-      _webNoteStore[index] = note.toMap();
+    if (kIsWeb) {
+      final tasks = await _getLocalTasks();
+      tasks.removeWhere((task) => task.id == id);
+      await _saveLocalTasks(tasks);
       return 1;
     }
 
-    if (note.id == null) {
+    try {
+      final firestore = await _getFirestore();
+
+      await _taskCollection(firestore).doc(id.toString()).delete();
+      return 1;
+    } catch (error) {
+      debugPrint('Failed to delete task: $error');
       return 0;
     }
+  }
 
-    await _noteCollection(
-      firestore,
-    ).doc(note.id.toString()).update(note.toMap());
-    return 1;
+  Future<int> deleteAllTasks() async {
+    if (kIsWeb) {
+      final tasks = await _getLocalTasks();
+      await _saveLocalTasks([]);
+      return tasks.length;
+    }
+
+    try {
+      final firestore = await _getFirestore();
+      final snapshot = await _taskCollection(firestore).get();
+      final batch = firestore.batch();
+
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+      return snapshot.docs.length;
+    } catch (error) {
+      debugPrint('Failed to delete all tasks: $error');
+      return 0;
+    }
+  }
+
+  Future<int> insertNote(Note note) async {
+    if (kIsWeb) {
+      final notes = await _getLocalNotes();
+      final int id = note.id ?? _generateId();
+      notes.removeWhere((existingNote) => existingNote.id == id);
+      notes.add(note.copyWith(id: id));
+      await _saveLocalNotes(notes);
+      return id;
+    }
+
+    try {
+      final firestore = await _getFirestore();
+      final int id = note.id ?? _generateId();
+      final noteMap = note.copyWith(id: id).toMap();
+
+      await _noteCollection(firestore).doc(id.toString()).set(noteMap);
+      return id;
+    } catch (error) {
+      debugPrint('Failed to insert note: $error');
+      return 0;
+    }
+  }
+
+  Future<List<Note>> retrieveNotes() async {
+    if (kIsWeb) {
+      return _getLocalNotes();
+    }
+
+    try {
+      final firestore = await _getFirestore();
+
+      final snapshot = await _noteCollection(
+        firestore,
+      ).orderBy('createdAt', descending: true).get();
+      return snapshot.docs.map((doc) => Note.fromMap(doc.data())).toList();
+    } catch (error) {
+      debugPrint('Failed to retrieve notes: $error');
+      return [];
+    }
+  }
+
+  Future<int> updateNote(Note note) async {
+    if (kIsWeb) {
+      if (note.id == null) {
+        return 0;
+      }
+
+      final notes = await _getLocalNotes();
+      final index = notes.indexWhere((existingNote) => existingNote.id == note.id);
+      if (index == -1) {
+        return 0;
+      }
+
+      notes[index] = note;
+      await _saveLocalNotes(notes);
+      return 1;
+    }
+
+    try {
+      final firestore = await _getFirestore();
+
+      if (note.id == null) {
+        return 0;
+      }
+
+      await _noteCollection(
+        firestore,
+      ).doc(note.id.toString()).update(note.toMap());
+      return 1;
+    } catch (error) {
+      debugPrint('Failed to update note: $error');
+      return 0;
+    }
   }
 
   Future<int> deleteNote(int id) async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final int initialLength = _webNoteStore.length;
-      _webNoteStore.removeWhere((map) => map['id'] == id);
-      return _webNoteStore.length < initialLength ? 1 : 0;
+    if (kIsWeb) {
+      final notes = await _getLocalNotes();
+      notes.removeWhere((note) => note.id == id);
+      await _saveLocalNotes(notes);
+      return 1;
     }
 
-    await _noteCollection(firestore).doc(id.toString()).delete();
-    return 1;
+    try {
+      final firestore = await _getFirestore();
+
+      await _noteCollection(firestore).doc(id.toString()).delete();
+      return 1;
+    } catch (error) {
+      debugPrint('Failed to delete note: $error');
+      return 0;
+    }
   }
 
   Future<int> deleteAllNotes() async {
-    final firestore = await _getFirestore();
-
-    if (firestore == null) {
-      final count = _webNoteStore.length;
-      _webNoteStore.clear();
-      return count;
+    if (kIsWeb) {
+      final notes = await _getLocalNotes();
+      await _saveLocalNotes([]);
+      return notes.length;
     }
 
-    final snapshot = await _noteCollection(firestore).get();
-    final batch = firestore.batch();
+    try {
+      final firestore = await _getFirestore();
+      final snapshot = await _noteCollection(firestore).get();
+      final batch = firestore.batch();
 
-    for (final doc in snapshot.docs) {
-      batch.delete(doc.reference);
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+      return snapshot.docs.length;
+    } catch (error) {
+      debugPrint('Failed to delete all notes: $error');
+      return 0;
     }
-
-    await batch.commit();
-    return snapshot.docs.length;
   }
 }

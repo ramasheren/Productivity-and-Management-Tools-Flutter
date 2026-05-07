@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "188509019257",
+    "project_id": "productivity-and-management",
+    "storage_bucket": "productivity-and-management.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:188509019257:android:faae7add3569f356cd08a8",
+        "android_client_info": {
+          "package_name": "com.example.productivity_and_management_tools"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATry9iuFkzUU_Dvonz1QdCJtM2sx-AZyU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:188509019257:android:b47f183ff2110f23cd08a8",
+        "android_client_info": {
+          "package_name": "com.ramas.focusflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATry9iuFkzUU_Dvonz1QdCJtM2sx-AZyU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
