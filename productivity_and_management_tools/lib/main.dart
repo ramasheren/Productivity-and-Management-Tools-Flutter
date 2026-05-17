@@ -9,7 +9,6 @@ import 'screens/add_task_screen.dart';
 import 'screens/add_note_screen.dart';
 import 'screens/notes_screen.dart';
 import 'screens/timer_screen.dart';
-import 'screens/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +42,6 @@ class MyApp extends StatelessWidget {
         },
         '/notes': (context) => const NotesScreen(),
         '/timer': (context) => const TimerScreen(),
-        '/settings': (context) => const SettingsScreen(),
       },
     );
   }
@@ -175,14 +173,6 @@ class _MyHomePageState extends State<MyHomePage> {
               },
             ),
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/settings');
-              },
-            ),
           ],
         ),
       ),
