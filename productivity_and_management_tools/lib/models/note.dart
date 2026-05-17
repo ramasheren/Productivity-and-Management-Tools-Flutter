@@ -11,7 +11,6 @@ class Note {
     required this.createdAt,
   });
 
-  // Convert Note object to Map for database
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -21,7 +20,6 @@ class Note {
     };
   }
 
-  // Convert Map from database to Note object
   factory Note.fromMap(Map<String, dynamic> map) {
     return Note(
       id: map['id'],
@@ -31,7 +29,6 @@ class Note {
     );
   }
 
-  // Create a copy of Note with modified fields
   Note copyWith({
     int? id,
     String? title,

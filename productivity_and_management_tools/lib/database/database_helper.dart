@@ -147,24 +147,6 @@ class DatabaseHelper {
     }
   }
 
-  Future<int> deleteAllTasks() async {
-    try {
-      final firestore = await _getFirestore();
-      final snapshot = await _taskCollection(firestore).get();
-      final batch = firestore.batch();
-
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      await batch.commit();
-      return snapshot.docs.length;
-    } catch (error) {
-      debugPrint('Failed to delete all tasks: $error');
-      return 0;
-    }
-  }
-
   Future<int> insertNote(Note note) async {
     final int id = note.id ?? _generateId();
     final newNote = note.copyWith(id: id);
@@ -211,24 +193,6 @@ class DatabaseHelper {
       return 1;
     } catch (error) {
       debugPrint('Failed to delete note: $error');
-      return 0;
-    }
-  }
-
-  Future<int> deleteAllNotes() async {
-    try {
-      final firestore = await _getFirestore();
-      final snapshot = await _noteCollection(firestore).get();
-      final batch = firestore.batch();
-
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      await batch.commit();
-      return snapshot.docs.length;
-    } catch (error) {
-      debugPrint('Failed to delete all notes: $error');
       return 0;
     }
   }
