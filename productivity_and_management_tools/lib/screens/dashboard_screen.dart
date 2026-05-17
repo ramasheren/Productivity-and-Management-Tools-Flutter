@@ -68,34 +68,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
-      final uri = Uri.https('zenquotes.io', '/api/random');
+      final uri = Uri.https('api.adviceslip.com', '/advice');
       final response = await http.get(uri);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final String quoteText =
-            data is List && data.isNotEmpty && data[0] is Map
-                ? (data[0]['q']?.toString() ?? '')
-                : '';
+        final String quoteText = data['slip']?['advice']?.toString() ?? '';
 
         if (!mounted) return;
         setState(() {
-          _quote = quoteText.isNotEmpty
-              ? quoteText
-              : _getFallbackQuote();
+          _quote = quoteText.isNotEmpty ? quoteText : _getFallbackQuote();
           _quoteLoading = false;
         });
-      } else {
-        debugPrint('Quote fetch failed: ${response.statusCode} ${response.reasonPhrase}');
-        if (!mounted) return;
-        setState(() {
-          _quote = _getFallbackQuote();
-          _quoteLoading = false;
-        });
+        return;
       }
-    } catch (e, stackTrace) {
-      debugPrint('Quote fetch exception: $e');
-      debugPrint(stackTrace.toString());
+
+      if (!mounted) return;
+      setState(() {
+        _quote = _getFallbackQuote();
+        _quoteLoading = false;
+      });
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _quote = _getFallbackQuote();
