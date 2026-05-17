@@ -4,6 +4,7 @@ import '../helpers/preferences_helper.dart';
 import '../models/task.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,6 +22,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   String _quote = '';
   bool _quoteLoading = true;
+
+  final List<String> _fallbackQuotes = [
+    'Stay focused and productive!',
+    'Small steps every day lead to big results.',
+    'Focus on what matters most right now.',
+    'Progress is better than perfection.',
+    'Start with one task and build momentum.',
+  ];
+
+  String _getFallbackQuote() {
+    return _fallbackQuotes[Random().nextInt(_fallbackQuotes.length)];
+  }
 
   @override
   void initState() {
@@ -49,32 +62,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchQuote() async {
+    if (!mounted) return;
+    setState(() {
+      _quoteLoading = true;
+    });
+
     try {
-      final response = await http.get(Uri.parse('https://zenquotes.io/api/random'));
+      final uri = Uri.https('zenquotes.io', '/api/random');
+      final response = await http.get(uri);
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (!mounted) {
-          return;
-        }
+        final String quoteText =
+            data is List && data.isNotEmpty && data[0] is Map
+                ? (data[0]['q']?.toString() ?? '')
+                : '';
+
+        if (!mounted) return;
         setState(() {
-          _quote = data[0]['q'] ?? 'Stay focused and productive!';
+          _quote = quoteText.isNotEmpty
+              ? quoteText
+              : _getFallbackQuote();
           _quoteLoading = false;
         });
       } else {
-        if (!mounted) {
-          return;
-        }
+        debugPrint('Quote fetch failed: ${response.statusCode} ${response.reasonPhrase}');
+        if (!mounted) return;
         setState(() {
-          _quote = 'Stay focused and productive!';
+          _quote = _getFallbackQuote();
           _quoteLoading = false;
         });
       }
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
+    } catch (e, stackTrace) {
+      debugPrint('Quote fetch exception: $e');
+      debugPrint(stackTrace.toString());
+      if (!mounted) return;
       setState(() {
-        _quote = 'Stay focused and productive!';
+        _quote = _getFallbackQuote();
         _quoteLoading = false;
       });
     }
