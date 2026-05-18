@@ -12,7 +12,7 @@ class TimerScreen extends StatefulWidget {
 class _TimerScreenState extends State<TimerScreen> {
   Timer? _timer;
   int _seconds = 0;
-  final int _totalSeconds = 25 * 60; // 25 minutes for Pomodoro
+  final int _totalSeconds = 25 * 60; 
   bool _isRunning = false;
   int _sessionsCompleted = 0;
 
@@ -78,7 +78,7 @@ class _TimerScreenState extends State<TimerScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Pomodoro Complete! 🎉'),
+        title: const Text('Pomodoro Complete!'),
         content: const Text('Great work! Take a 5-minute break.'),
         actions: [
           TextButton(
